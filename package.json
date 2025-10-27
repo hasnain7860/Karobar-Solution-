@@ -1,0 +1,22 @@
+{
+  "name": "karobarsolution",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "next": "16.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^9",
+        "@tailwindcss/typography": "^0.5.16",
+    "eslint-config-next": "16.0.0",
+     "tailwindcss": "^3.4.17"
+  }
+}
