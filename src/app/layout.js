@@ -7,7 +7,7 @@ export const metadata = {
   title: "Karobar Solution | Pakistan's #1 Wholesale POS Software",
   description: "Internet ke baghair chalne wala wahid software. Stock, Udhaar, aur Munafa ka 100% accurate hisaab.",
   
-  // --- Yahan Icons add karo ---
+  // Icons setup
   icons: {
     icon: [
       { url: '/favicon.ico' },
@@ -17,16 +17,10 @@ export const metadata = {
     apple: [
       { url: '/apple-touch-icon.png' },
     ],
-    other: [
-      {
-        rel: 'apple-touch-icon-precomposed',
-        url: '/apple-touch-icon.png',
-      },
-    ],
   },
-  manifest: '/site.webmanifest', // Mobile users ke liye zaroori hai
-  // ---------------------------
+  manifest: '/site.webmanifest',
 
+  // OpenGraph (Social Media Share)
   openGraph: {
     title: "Karobar Solution - Munafa Barhao",
     description: "Stock aur Udhaar ka hisaab rakhna ab asaan.",
@@ -34,8 +28,22 @@ export const metadata = {
     siteName: "Karobar Solution",
     locale: "en_PK",
     type: "website",
-    // Images wala hissa neeche explain kiya hai
+    images: [
+      {
+        url: '/opengraph-image.png', // Jo image hum ne banayi thi
+        width: 1200,
+        height: 630,
+        alt: 'Karobar Solution Dashboard Preview',
+      },
+    ],
   },
+
+  // --- Search Engine Verification ---
+  verification: {
+    // Yahan apna Google code paste karna hai (HTML Tag wala)
+    google: 'g8ooE2PvtiVaqJxsCSR-RFoixVhFoaKGQhk9JBl4Cgk', 
+  },
+  // ---------------------------------
 };
 
 export default function RootLayout({ children }) {
