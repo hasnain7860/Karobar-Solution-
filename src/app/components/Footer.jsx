@@ -10,7 +10,6 @@ export default function Footer() {
           {/* Logo in Footer */}
           <div className="mb-6 md:mb-0 text-center md:text-left">
              <div className="relative h-14 w-64 mb-4 mx-auto md:mx-0">
-                {/* Ab ye direct White Logo use karega, koi CSS jugad nahi */}
                 <Image
                   src="/images/logo-white.png" // White Text Logo
                   alt="Karobar Solution"
@@ -24,9 +23,9 @@ export default function Footer() {
           </div>
 
           <div className="flex flex-wrap gap-6 text-sm text-slate-400 justify-center font-medium">
-            <Link href="#" className="hover:text-white transition-colors">Privacy Policy</Link>
-            <Link href="#" className="hover:text-white transition-colors">Terms of Service</Link>
-            <Link href="#" className="hover:text-white transition-colors">Support</Link>
+            <Link href="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link href="/terms-of-service" className="hover:text-white transition-colors">Terms of Service</Link>
+            <Link href="/support" className="hover:text-white transition-colors">Support</Link>
           </div>
         </div>
         
