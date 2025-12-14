@@ -49,7 +49,7 @@ export default function Hero() {
                 muted
                 playsInline
                 preload="none"
-                poster="/images/dashboard.png" // Video load hone se pehle ye image dikhegi
+                poster="/images/dashboard.webp" // Video load hone se pehle ye image dikhegi
               >
                 {/* Make sure file exists in public/videos/demo-scroll.mp4 */}
                 <source src="/videos/demo-scroll.mp4" type="video/mp4" />
