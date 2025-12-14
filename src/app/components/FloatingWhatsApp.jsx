@@ -11,7 +11,7 @@ export default function FloatingWhatsApp() {
       href="https://wa.me/923314460028?text=Salam!%20Mujhe%20Karobar%20Solution%20ke%20baray%20mein%20maloomat%20chahiye."
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-green-500 hover:bg-green-700 text-white px-4 py-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 animate-bounce-slow"
+      className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 animate-bounce-slow"
       aria-label="Chat on WhatsApp"
     >
       <WhatsAppIcon />
