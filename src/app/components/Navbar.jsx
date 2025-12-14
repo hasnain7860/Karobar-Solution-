@@ -35,7 +35,7 @@ export default function Navbar() {
               href="https://wa.me/923314460028"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center px-5 py-2.5 border border-transparent text-sm font-bold rounded-lg text-white bg-green-600 hover:bg-green-700 transition-all shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 hover:-translate-y-0.5"
+              className="inline-flex items-center px-5 py-2.5 border border-transparent text-sm font-bold rounded-lg text-white bg-green-700 hover:bg-green-800 transition-all shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 hover:-translate-y-0.5"
             >
               <WhatsAppIcon />
               <span className="hidden sm:inline">WhatsApp Pe Raabta Karein</span>

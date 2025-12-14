@@ -6,7 +6,7 @@ export default function HowItWorks() {
       title: "Humein WhatsApp Karein",
       desc: "Register button dhoondne ki zaroorat nahi. Bas humein message karein, hum aap ki zaroorat samjhenge.",
       icon: MessageCircle,
-      color: "bg-green-600"
+      color: "bg-green-700"
     },
     {
       title: "Hum Account Setup Karenge",
@@ -57,7 +57,7 @@ export default function HowItWorks() {
         <div className="mt-12 text-center">
             <a 
                 href="https://wa.me/923314460028"
-                className="inline-flex items-center px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-full transition-all hover:scale-105 shadow-lg"
+                className="inline-flex items-center px-8 py-4 bg-green-700 hover:bg-green-800 text-white font-bold rounded-full transition-all hover:scale-105 shadow-lg"
             >
                 <MessageCircle className="w-5 h-5 mr-2" />
                 Abhi Account Banwayen

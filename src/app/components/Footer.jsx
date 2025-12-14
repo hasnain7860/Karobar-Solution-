@@ -29,7 +29,7 @@ export default function Footer() {
           </div>
         </div>
         
-        <div className="border-t border-slate-800 pt-8 text-center md:text-left text-slate-500 text-sm">
+        <div className="border-t border-slate-800 pt-8 text-center md:text-left text-white text-sm">
           <p>&copy; {new Date().getFullYear()} Karobar Solution. All rights reserved. Made with ❤️ in Pakistan.</p>
         </div>
       </div>

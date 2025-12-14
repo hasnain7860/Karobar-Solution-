@@ -26,7 +26,7 @@ export default function Hero() {
             href="https://wa.me/923314460028?text=Salam!%20Mujhe%20Karobar%20Solution%20ka%20Free%20Demo%20chahiye."
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center px-8 py-4 text-lg font-bold rounded-xl text-white bg-green-600 hover:bg-green-700 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all"
+            className="inline-flex items-center justify-center px-8 py-4 text-lg font-bold rounded-xl text-white bg-green-700 hover:bg-green-800 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all"
           >
             <WhatsAppIcon />
             FREE Demo Book Karein
