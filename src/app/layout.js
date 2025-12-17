@@ -50,6 +50,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       {/* Step 2: GTM Script (Head Code) - Ye Next.js khud Head mein inject karega */}
+            <head>
+               <link rel="icon" href="/favicon.ico" sizes="any" />
+         
+                   <link rel="apple-touch-icon" href="/apple-touch-icon.png" /> 
       <Script id="google-tag-manager" strategy="afterInteractive">
         {`
           (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -59,7 +63,7 @@ export default function RootLayout({ children }) {
           })(window,document,'script','dataLayer','GTM-WLTNLLQT');
         `}
       </Script>
-
+</head>
       <body className={`${inter.className} bg-slate-50 text-slate-900`}>
         {/* Step 3: GTM NoScript (Body Code) - Ye body ke bilkul shuru mein */}
         <noscript>
