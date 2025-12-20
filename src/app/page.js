@@ -2,10 +2,10 @@ import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import SocialProof from "./components/SocialProof";
 import ProblemSolution from "./components/ProblemSolution";
-import Industries from "./components/Industries"; // NEW
+import Industries from "./components/Industries"; 
 import Features from "./components/Features";
-import DetailedFeatures from "./components/DetailedFeatures"; // NEW
-import HowItWorks from "./components/HowItWorks"; // NEW
+import DetailedFeatures from "./components/DetailedFeatures"; 
+import HowItWorks from "./components/HowItWorks"; 
 import Pricing from "./components/Pricing";
 import FAQ from "./components/FAQ";
 import Contact from "./components/Contact";
@@ -18,19 +18,29 @@ export default function Home() {
     <>
       <Script id="schema-software" type="application/ld+json">
         {`
-          {
-            "@context": "https://schema.org",
-            "@type": "SoftwareApplication",
-            "name": "Karobar Solution",
-            "applicationCategory": "BusinessApplication",
-            "operatingSystem": "Web, Windows, Android",
-            "description": "Best POS and Inventory management software for Pakistani wholesalers. Works offline.",
-            "offers": {
-              "@type": "Offer",
-              "price": "2000",
-              "priceCurrency": "PKR"
-            }
-          }
+{
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Karobar Solution",
+    "operatingSystem": "Windows, Android, Web",
+    "applicationCategory": "BusinessApplication",
+    "description": "Pakistan's #1 Wholesale POS Software. Manage Stock, Udhaar, and Profit offline.",
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.9",
+      "reviewCount": "4" // Tumhare 4 clients
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "2000", 
+      "priceCurrency": "PKR"
+    },
+    "author": {
+      "@type": "Organization",
+      "name": "Karobar Solution",
+      "url": "https://karobarsolution.com"
+    }
+  };
         `}
       </Script>
 
@@ -75,5 +85,6 @@ export default function Home() {
     </>
   );
 }
+
 
 
