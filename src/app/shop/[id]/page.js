@@ -4,40 +4,36 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getDatabase, ref, onValue, push, serverTimestamp } from 'firebase/database';
-import { ShoppingCart, MapPin, Phone, Search, X, Navigation, Store, CheckCircle } from 'lucide-react';
+import { ShoppingCart, MapPin, Phone, Search, X, Navigation, Store, CheckCircle, Package } from 'lucide-react';
 
 export default function ShopPage() {
   const params = useParams();
   const userId = params.id;
-
-  // --- REFS (For Stability) ---
   const dbRef = useRef(null); 
 
-  // --- STATE MANAGEMENT ---
+  // --- STATE ---
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Data States
   const [shopSettings, setShopSettings] = useState({
-    name: 'Loading Store...',
+    name: 'Loading...',
     phone: '',
     address: '',
     deliveryFee: 0,
     minOrder: 0,
     isActive: true,
-    logo: null
+    logo: null,
+    currency: 'Rs'
   });
   
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Cart & Order States
   const [cart, setCart] = useState({});
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isOrderPlacing, setIsOrderPlacing] = useState(false);
   
-  // Checkout Form
   const [customer, setCustomer] = useState({
     name: '',
     phone: '',
@@ -45,26 +41,24 @@ export default function ShopPage() {
     location: null 
   });
 
-  // --- 1. INITIALIZATION ---
+  // --- INIT ---
   useEffect(() => {
     if (!userId) return;
 
     const initShop = async () => {
       try {
-        // Step 1: Get Config from Next.js API
+        // 1. Config Fetch
         const res = await fetch(`/api/shop-config?id=${userId}`);
-        if (!res.ok) throw new Error("Store is currently offline or not found.");
+        if (!res.ok) throw new Error("Store unavailable.");
         const data = await res.json();
         
-        // Initial Settings from API (Fallback)
+        // Initial Fallback
         setShopSettings(prev => ({
             ...prev,
             name: data.shopName || prev.name,
-            phone: data.phone || prev.phone,
-            address: data.address || prev.address
         }));
 
-        // Step 2: Connect to Client Firebase
+        // 2. Firebase Connect
         connectToRealtimeDB(data.config, userId);
       } catch (err) {
         console.error("Init Error:", err);
@@ -80,8 +74,6 @@ export default function ShopPage() {
     try {
       const appName = `shop-${shopId}`;
       let shopApp;
-      
-      // Prevent Duplicate App Initialization
       if (getApps().some(app => app.name === appName)) {
         shopApp = getApp(appName);
       } else {
@@ -89,37 +81,50 @@ export default function ShopPage() {
       }
       
       const db = getDatabase(shopApp);
-      dbRef.current = db; // Store DB reference securely
+      dbRef.current = db;
 
-      // Listener 1: Settings (Live Updates)
+      // --- LISTENER 1: SETTINGS (MAPPED TO YOUR JSON) ---
       onValue(ref(db, 'settings'), (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            // Check if settings is array or object
-            const settingsObj = Array.isArray(data) ? data[0] : data;
-            
-            if (settingsObj) {
+            // Data can be an object with ID keys OR an array. We take the first valid entry.
+            const rawSettings = Array.isArray(data) 
+                ? data[0] 
+                : Object.values(data)[0]; 
+
+            if (rawSettings) {
+                // Mapping Logic based on your provided JSON
+                const business = rawSettings.business || {};
+                const online = rawSettings.onlineStore || {};
+                const user = rawSettings.user || {};
+
                 setShopSettings(prev => ({
                     ...prev,
-                    // Priority: Online Store Config > Business Config > API Config
-                    name: settingsObj.onlineStore?.displayName || settingsObj.business?.businessName || prev.name,
-                    phone: settingsObj.onlineStore?.phone || settingsObj.business?.phoneNo || prev.phone,
-                    address: settingsObj.business?.address || prev.address,
-                    deliveryFee: Number(settingsObj.onlineStore?.deliveryFee || 0),
-                    minOrder: Number(settingsObj.onlineStore?.minOrder || 0),
-                    isActive: settingsObj.onlineStore?.isActive ?? true,
-                    logo: settingsObj.business?.logo || null
+                    // Priority: Online Display Name -> Business Name
+                    name: online.displayName || business.businessName || "Online Store",
+                    // Priority: Online Phone -> Business Phone -> User Phone
+                    phone: online.phone || business.phoneNo || user.phoneNo || "",
+                    address: business.address || "",
+                    logo: business.logo || null, // Base64 string
+                    
+                    // Numeric Values
+                    deliveryFee: Number(online.deliveryFee || 0),
+                    minOrder: Number(online.minOrder || 0),
+                    isActive: online.isActive ?? true, // Default true if undefined
+                    currency: business.currency || 'Rs'
                 }));
             }
         }
       });
 
-      // Listener 2: Products
+      // --- LISTENER 2: PRODUCTS (MAPPED TO YOUR JSON) ---
       onValue(ref(db, 'products'), (snapshot) => {
         const data = snapshot.val();
         if (data) {
-          // Robust Filtering: Ensure price exists
-          const productList = Object.values(data).filter(p => p && !p._deleted);
+          const productList = Object.values(data).filter(p => {
+             // Basic Validation: Must have name and not be deleted
+             return p && p.name && !p._deleted; 
+          });
           setProducts(productList);
           setFilteredProducts(productList);
         } else {
@@ -129,12 +134,12 @@ export default function ShopPage() {
       });
 
     } catch (err) {
-      setError("Failed to connect to store database.");
+      setError("Connection failed.");
       setLoading(false);
     }
   };
 
-  // --- 2. FILTERING LOGIC ---
+  // --- FILTERING ---
   useEffect(() => {
     let result = products;
     if (searchQuery) {
@@ -147,30 +152,39 @@ export default function ShopPage() {
     setFilteredProducts(result);
   }, [searchQuery, products]);
 
-  // --- 3. HELPER: PRICE FINDER ---
-  // Brutal Fix: Price ka naam kuch bhi ho, ye dhoond lega
-  const getPrice = (item) => {
-    return Number(item.sellPrice || item.price || item.retailPrice || 0);
+  // --- HELPER: PRICE & STOCK ---
+  // Tumhare data ke mutabiq sellPrice aur quantity root level par hain
+  const getProductDetails = (item) => {
+      return {
+          price: Number(item.sellPrice || 0),
+          originalPrice: Number(item.retailPrice || 0),
+          stock: Number(item.quantity || 0), // Root quantity (Aggregated stock)
+          urdu: item.nameInUrdu
+      };
   };
 
-  // --- 4. CART ACTIONS ---
+  // --- CART ACTIONS ---
   const addToCart = (product) => {
-    const price = getPrice(product);
+    const { price, stock } = getProductDetails(product);
+
     if (price <= 0) {
-        alert("This item cannot be added (Price Invalid)");
+        alert("Price error. Cannot add.");
         return;
     }
 
     setCart(prev => {
       const currentQty = prev[product.id]?.qty || 0;
-      // Stock Check
-      if (product.quantity && currentQty >= product.quantity) {
-        alert("Sorry, Maximum stock reached!");
+      if (currentQty >= stock) {
+        alert("Out of Stock!");
         return prev;
       }
       return {
         ...prev,
-        [product.id]: { ...product, qty: currentQty + 1, finalPrice: price }
+        [product.id]: { 
+            ...product, 
+            qty: currentQty + 1, 
+            finalPrice: price // Snapshot price at time of add
+        }
       };
     });
   };
@@ -188,17 +202,17 @@ export default function ShopPage() {
   };
 
   const cartTotal = Object.values(cart).reduce((sum, item) => sum + (item.finalPrice * item.qty), 0);
-  const finalTotal = cartTotal + (shopSettings.deliveryFee || 0);
+  const finalTotal = cartTotal + shopSettings.deliveryFee;
 
-  // --- 5. LOCATION & ORDER ---
+  // --- LOCATION & ORDER ---
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser");
+      alert("Geolocation not supported");
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
         setCustomer(prev => ({
           ...prev,
           location: {
@@ -208,35 +222,32 @@ export default function ShopPage() {
           }
         }));
       },
-      (error) => alert("Unable to get location. Please allow permissions.")
+      () => alert("Permission denied for location")
     );
   };
 
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
-    
-    // DB Connection Check
-    if (!dbRef.current) {
-        alert("Connection Error: Refresh the page and try again.");
-        return;
-    }
+    if (!dbRef.current) return alert("Connection Error");
 
     if (cartTotal < shopSettings.minOrder) {
-        alert(`Minimum order amount is Rs ${shopSettings.minOrder}`);
+        alert(`Minimum order must be ${shopSettings.currency} ${shopSettings.minOrder}`);
         return;
     }
 
     setIsOrderPlacing(true);
 
     try {
-      // Data Cleaning
+      // 1. Clean Data for DB (Security)
       const cleanItems = {};
       Object.values(cart).forEach(item => {
         cleanItems[item.id] = {
             id: item.id,
             name: item.name,
+            nameInUrdu: item.nameInUrdu || "",
             qty: item.qty,
             price: item.finalPrice,
+            // We do NOT send purchasePrice or wholeSalePrice
         };
       });
 
@@ -256,52 +267,51 @@ export default function ShopPage() {
         source: 'online_store'
       };
 
-      // Direct DB Reference Use
       await push(ref(dbRef.current, 'orders'), orderData);
       
-      alert("✅ Order Placed Successfully!");
+      alert("Order Placed Successfully!");
       setCart({});
       setIsCartOpen(false);
       setCustomer({ name: '', phone: '', address: '', location: null });
     } catch (err) {
-      console.error("Order Failed:", err);
-      alert("Failed to place order: " + err.message);
+      console.error(err);
+      alert("Order Failed. Please try again.");
     } finally {
       setIsOrderPlacing(false);
     }
   };
 
   // --- RENDER ---
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-blue-600"><span className="loading loading-spinner loading-lg"></span></div>;
-  if (error) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-red-500 font-bold px-4 text-center">{error}</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><span className="loading loading-spinner text-blue-600 loading-lg"></span></div>;
+  if (error) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-red-500 font-bold">{error}</div>;
 
   if (!shopSettings.isActive) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4 text-center">
             <Store size={64} className="text-gray-400 mb-4" />
             <h1 className="text-2xl font-bold text-gray-800">Store Closed</h1>
-            <p className="text-gray-500">Not accepting orders right now.</p>
+            <p className="text-gray-500">Currently not accepting orders.</p>
         </div>
       );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24 font-sans">
+    <div className="min-h-screen bg-gray-50 pb-24 font-sans text-gray-800">
       
       {/* HEADER */}
-      <header className="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-100">
+      <header className="bg-white sticky top-0 z-10 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-3">
             <div className="flex justify-between items-center mb-3">
                 <div className="flex items-center gap-3">
                     {shopSettings.logo ? (
-                        <img src={shopSettings.logo} alt="Logo" className="w-10 h-10 rounded-full object-cover border" />
+                        <img src={shopSettings.logo} alt="Logo" className="w-10 h-10 rounded-full object-contain bg-white border" />
                     ) : (
                         <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
                             {shopSettings.name.charAt(0)}
                         </div>
                     )}
-                    <div>
-                        <h1 className="font-bold text-gray-900 leading-tight">{shopSettings.name}</h1>
+                    <div className="flex-1 min-w-0">
+                        <h1 className="font-bold text-gray-900 leading-tight truncate">{shopSettings.name}</h1>
                         <a href={`tel:${shopSettings.phone}`} className="text-xs text-blue-600 flex items-center gap-1">
                             <Phone size={10} /> {shopSettings.phone}
                         </a>
@@ -322,7 +332,7 @@ export default function ShopPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                 <input 
                     type="text" 
-                    placeholder="Search items..." 
+                    placeholder="Search products..." 
                     className="w-full bg-gray-100 text-sm pl-9 pr-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -331,39 +341,51 @@ export default function ShopPage() {
         </div>
       </header>
 
-      {/* PRODUCT LIST */}
+      {/* PRODUCTS */}
       <main className="max-w-2xl mx-auto p-4 grid grid-cols-2 gap-3">
         {filteredProducts.map((item) => {
-            const price = getPrice(item); // Using Helper
+            const { price, originalPrice, stock, urdu } = getProductDetails(item);
             const qtyInCart = cart[item.id]?.qty || 0;
-            const isOutOfStock = (item.quantity || 0) <= 0;
+            const isOutOfStock = stock <= 0;
+            
+            // Discount Calc
+            const hasDiscount = originalPrice > price;
+            const discountPct = hasDiscount ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
 
             return (
-                <div key={item.id} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-full">
+                <div key={item.id} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-full relative overflow-hidden">
+                   
+                   {hasDiscount && (
+                       <span className="absolute top-0 right-0 bg-green-500 text-white text-[9px] font-bold px-2 py-1 rounded-bl-lg z-0">
+                           {discountPct}% OFF
+                       </span>
+                   )}
+
                    <div>
-                       {/* Price Display */}
-                       <div className="flex items-baseline gap-2 mb-3">
-                            <span className="font-black text-blue-600">Rs {price}</span>
-                            {item.retailPrice > price && (
-                                <span className="text-xs text-gray-400 line-through">Rs {item.retailPrice}</span>
+                       <div className="flex items-baseline gap-2 mb-1 mt-2">
+                            <span className="font-black text-blue-600 text-lg">{shopSettings.currency} {price}</span>
+                            {hasDiscount && (
+                                <span className="text-xs text-gray-400 line-through">{originalPrice}</span>
                             )}
                        </div>
                        
                        <h3 className="font-bold text-gray-800 text-sm leading-snug mb-1 line-clamp-2">{item.name}</h3>
-                       {item.nameInUrdu && <p className="text-xs text-gray-400 font-arabic mb-2 text-right">{item.nameInUrdu}</p>}
+                       {urdu && <p className="text-xs text-gray-400 font-bold text-right mb-2" dir="rtl">{urdu}</p>}
                    </div>
 
                    {isOutOfStock ? (
-                       <div className="w-full bg-gray-100 text-gray-400 text-xs font-bold py-2 rounded-xl text-center">Out of Stock</div>
+                       <div className="w-full bg-gray-100 text-gray-400 text-xs font-bold py-2 rounded-xl text-center flex items-center justify-center gap-1">
+                           <Package size={12} /> Out of Stock
+                       </div>
                    ) : qtyInCart > 0 ? (
-                       <div className="flex items-center justify-between bg-gray-900 text-white rounded-xl p-1">
-                           <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 flex items-center justify-center hover:bg-gray-700 rounded-lg font-bold">-</button>
+                       <div className="flex items-center justify-between bg-gray-900 text-white rounded-xl p-1 shadow-md">
+                           <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 flex items-center justify-center hover:bg-gray-700 rounded-lg font-bold text-lg">-</button>
                            <span className="text-sm font-bold">{qtyInCart}</span>
-                           <button onClick={() => addToCart(item)} className="w-8 h-8 flex items-center justify-center hover:bg-gray-700 rounded-lg font-bold">+</button>
+                           <button onClick={() => addToCart(item)} className="w-8 h-8 flex items-center justify-center hover:bg-gray-700 rounded-lg font-bold text-lg">+</button>
                        </div>
                    ) : (
-                       <button onClick={() => addToCart(item)} className="w-full bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 text-sm font-bold py-2 rounded-xl transition-colors">
-                           Add to Cart
+                       <button onClick={() => addToCart(item)} className="w-full bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white text-sm font-bold py-2 rounded-xl transition-all active:scale-95">
+                           Add
                        </button>
                    )}
                 </div>
@@ -371,30 +393,30 @@ export default function ShopPage() {
         })}
       </main>
 
-      {/* CART BUTTON */}
+      {/* FLOATING TOTAL */}
       {!isCartOpen && Object.keys(cart).length > 0 && (
           <div className="fixed bottom-4 left-4 right-4 max-w-2xl mx-auto z-20">
-              <button onClick={() => setIsCartOpen(true)} className="w-full bg-gray-900 text-white p-4 rounded-2xl shadow-xl flex justify-between items-center">
+              <button onClick={() => setIsCartOpen(true)} className="w-full bg-gray-900 text-white p-4 rounded-2xl shadow-xl flex justify-between items-center transform transition-all active:scale-95">
                   <div className="flex items-center gap-3">
                       <div className="bg-white/20 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">
                         {Object.values(cart).reduce((a, b) => a + b.qty, 0)}
                       </div>
                       <div className="text-left">
-                          <p className="text-xs text-gray-300 uppercase font-bold">Total</p>
-                          <p className="font-bold text-lg leading-none">Rs {finalTotal}</p>
+                          <p className="text-[10px] text-gray-300 uppercase font-bold tracking-wider">Total Payable</p>
+                          <p className="font-bold text-lg leading-none">{shopSettings.currency} {finalTotal}</p>
                       </div>
                   </div>
-                  <span className="font-bold text-sm flex items-center gap-1">View Cart <Navigation size={14} className="rotate-90" /></span>
+                  <span className="font-bold text-sm flex items-center gap-2">View Cart <Navigation size={14} className="rotate-90" /></span>
               </button>
           </div>
       )}
 
-      {/* CART MODAL */}
+      {/* CART OVERLAY */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 bg-white flex flex-col animate-in slide-in-from-bottom duration-300">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                 <h2 className="font-black text-xl text-gray-800">Your Cart</h2>
-                <button onClick={() => setIsCartOpen(false)} className="p-2 bg-white rounded-full shadow-sm text-gray-500"><X size={20} /></button>
+                <button onClick={() => setIsCartOpen(false)} className="p-2 bg-white rounded-full shadow-sm text-gray-500 hover:bg-gray-100"><X size={20} /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -402,13 +424,14 @@ export default function ShopPage() {
                     <div key={item.id} className="flex justify-between items-center border-b border-gray-50 pb-3">
                         <div>
                             <p className="font-bold text-gray-800">{item.name}</p>
-                            <p className="text-xs text-gray-400">Rs {item.finalPrice} x {item.qty}</p>
+                            {item.nameInUrdu && <p className="text-xs text-gray-400 text-right">{item.nameInUrdu}</p>}
+                            <p className="text-xs text-gray-400">{shopSettings.currency} {item.finalPrice} x {item.qty}</p>
                         </div>
                         <div className="flex items-center gap-3">
-                            <span className="font-bold text-gray-800">Rs {item.finalPrice * item.qty}</span>
-                            <div className="flex items-center bg-gray-100 rounded-lg h-8">
-                                <button onClick={() => removeFromCart(item.id)} className="w-8 h-full flex items-center justify-center text-gray-600">-</button>
-                                <button onClick={() => addToCart(item)} className="w-8 h-full flex items-center justify-center text-gray-600">+</button>
+                            <span className="font-bold text-gray-800">{shopSettings.currency} {item.finalPrice * item.qty}</span>
+                            <div className="flex items-center bg-gray-100 rounded-lg h-8 border border-gray-200">
+                                <button onClick={() => removeFromCart(item.id)} className="w-8 h-full flex items-center justify-center text-gray-600 hover:text-red-500 font-bold">-</button>
+                                <button onClick={() => addToCart(item)} className="w-8 h-full flex items-center justify-center text-gray-600 hover:text-green-500 font-bold">+</button>
                             </div>
                         </div>
                     </div>
@@ -421,27 +444,29 @@ export default function ShopPage() {
                                 <MapPin size={16} /> Delivery Details
                             </h3>
                             <div className="space-y-3">
-                                <input required type="text" placeholder="Your Name" className="w-full p-3 rounded-lg border border-blue-200 text-sm" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
-                                <input required type="tel" placeholder="Phone Number" className="w-full p-3 rounded-lg border border-blue-200 text-sm" value={customer.phone} onChange={e => setCustomer({...customer, phone: e.target.value})} />
-                                <textarea required placeholder="Address" rows="2" className="w-full p-3 rounded-lg border border-blue-200 text-sm" value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} />
-                                <button type="button" onClick={handleGetLocation} className={`w-full py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 ${customer.location ? 'bg-green-100 text-green-700' : 'bg-white border border-blue-200 text-blue-600'}`}>
-                                    {customer.location ? <><CheckCircle size={14} /> Location Saved</> : <><Navigation size={14} /> Share GPS Location</>}
+                                <input required type="text" placeholder="Full Name" className="w-full p-3 rounded-lg border border-blue-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
+                                <input required type="tel" placeholder="Phone Number" className="w-full p-3 rounded-lg border border-blue-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={customer.phone} onChange={e => setCustomer({...customer, phone: e.target.value})} />
+                                <textarea required placeholder="Full Address (House #, Street, City)" rows="2" className="w-full p-3 rounded-lg border border-blue-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} />
+                                
+                                <button type="button" onClick={handleGetLocation} className={`w-full py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors ${customer.location ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-white border border-blue-200 text-blue-600 hover:bg-blue-50'}`}>
+                                    {customer.location ? <><CheckCircle size={14} /> GPS Location Saved</> : <><Navigation size={14} /> Share GPS Location</>}
                                 </button>
                             </div>
                         </div>
+
                         <div className="space-y-2 pt-2 text-sm">
-                            <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>Rs {cartTotal}</span></div>
-                            <div className="flex justify-between text-gray-500"><span>Delivery Fee</span><span>Rs {shopSettings.deliveryFee}</span></div>
-                            <div className="flex justify-between text-gray-900 font-black text-lg border-t pt-2 mt-2"><span>Total</span><span>Rs {finalTotal}</span></div>
+                            <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>{shopSettings.currency} {cartTotal}</span></div>
+                            <div className="flex justify-between text-gray-500"><span>Delivery Fee</span><span>{shopSettings.currency} {shopSettings.deliveryFee}</span></div>
+                            <div className="flex justify-between text-gray-900 font-black text-lg border-t pt-2 mt-2"><span>Total</span><span>{shopSettings.currency} {finalTotal}</span></div>
                         </div>
                     </form>
                 )}
             </div>
 
-            <div className="p-4 border-t bg-white">
+            <div className="p-4 border-t bg-white safe-area-bottom">
                 {Object.keys(cart).length > 0 && (
-                    <button form="checkout-form" type="submit" disabled={isOrderPlacing} className="w-full bg-gray-900 text-white py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2">
-                        {isOrderPlacing ? <span className="loading loading-spinner"></span> : `Confirm Order • Rs ${finalTotal}`}
+                    <button form="checkout-form" type="submit" disabled={isOrderPlacing} className="w-full bg-gray-900 text-white py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                        {isOrderPlacing ? <span className="loading loading-spinner"></span> : `Place Order • ${shopSettings.currency} ${finalTotal}`}
                     </button>
                 )}
             </div>
