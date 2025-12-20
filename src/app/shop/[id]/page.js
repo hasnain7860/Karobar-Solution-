@@ -47,18 +47,15 @@ export default function ShopPage() {
 
     const initShop = async () => {
       try {
-        // 1. Config Fetch
         const res = await fetch(`/api/shop-config?id=${userId}`);
         if (!res.ok) throw new Error("Store unavailable.");
         const data = await res.json();
         
-        // Initial Fallback
         setShopSettings(prev => ({
             ...prev,
             name: data.shopName || prev.name,
         }));
 
-        // 2. Firebase Connect
         connectToRealtimeDB(data.config, userId);
       } catch (err) {
         console.error("Init Error:", err);
@@ -83,48 +80,36 @@ export default function ShopPage() {
       const db = getDatabase(shopApp);
       dbRef.current = db;
 
-      // --- LISTENER 1: SETTINGS (MAPPED TO YOUR JSON) ---
+      // SETTINGS LISTENER
       onValue(ref(db, 'settings'), (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            // Data can be an object with ID keys OR an array. We take the first valid entry.
-            const rawSettings = Array.isArray(data) 
-                ? data[0] 
-                : Object.values(data)[0]; 
-
+            const rawSettings = Array.isArray(data) ? data[0] : Object.values(data)[0]; 
             if (rawSettings) {
-                // Mapping Logic based on your provided JSON
                 const business = rawSettings.business || {};
                 const online = rawSettings.onlineStore || {};
                 const user = rawSettings.user || {};
 
                 setShopSettings(prev => ({
                     ...prev,
-                    // Priority: Online Display Name -> Business Name
                     name: online.displayName || business.businessName || "Online Store",
-                    // Priority: Online Phone -> Business Phone -> User Phone
                     phone: online.phone || business.phoneNo || user.phoneNo || "",
                     address: business.address || "",
-                    logo: business.logo || null, // Base64 string
-                    
-                    // Numeric Values
+                    logo: business.logo || null,
                     deliveryFee: Number(online.deliveryFee || 0),
                     minOrder: Number(online.minOrder || 0),
-                    isActive: online.isActive ?? true, // Default true if undefined
+                    isActive: online.isActive ?? true,
                     currency: business.currency || 'Rs'
                 }));
             }
         }
       });
 
-      // --- LISTENER 2: PRODUCTS (MAPPED TO YOUR JSON) ---
+      // PRODUCTS LISTENER
       onValue(ref(db, 'products'), (snapshot) => {
         const data = snapshot.val();
         if (data) {
-          const productList = Object.values(data).filter(p => {
-             // Basic Validation: Must have name and not be deleted
-             return p && p.name && !p._deleted; 
-          });
+          const productList = Object.values(data).filter(p => p && p.name && !p._deleted);
           setProducts(productList);
           setFilteredProducts(productList);
         } else {
@@ -152,13 +137,49 @@ export default function ShopPage() {
     setFilteredProducts(result);
   }, [searchQuery, products]);
 
-  // --- HELPER: PRICE & STOCK ---
-  // Tumhare data ke mutabiq sellPrice aur quantity root level par hain
+  // --- 🚨 CRITICAL LOGIC: BATCH HANDLING ---
   const getProductDetails = (item) => {
+      let totalStock = 0;
+      let activePrice = Number(item.sellPrice || 0);
+      let originalPrice = Number(item.retailPrice || 0);
+
+      // Agar Batches hain, toh unhe scan karo
+      if (item.batchCode && Array.isArray(item.batchCode) && item.batchCode.length > 0) {
+          let batchStockSum = 0;
+          let maxBatchPrice = 0;
+          let hasActiveBatch = false;
+
+          item.batchCode.forEach(batch => {
+              const qty = Number(batch.quantity || 0);
+              const price = Number(batch.sellPrice || 0);
+
+              // Sirf un batches ko gino jinme stock hai
+              if (qty > 0) {
+                  batchStockSum += qty;
+                  hasActiveBatch = true;
+                  // Sabse mehnga price uthao (Safety ke liye)
+                  if (price > maxBatchPrice) maxBatchPrice = price;
+              }
+          });
+
+          // Agar batches mein stock mila, to Root values ko overwrite karo
+          if (hasActiveBatch) {
+              totalStock = batchStockSum;
+              if (maxBatchPrice > 0) activePrice = maxBatchPrice;
+          } 
+          // Agar batches hain par sab khaali (0 qty) hain, to stock 0 ho jayega
+          else if (item.batchCode.length > 0) {
+              totalStock = 0; 
+          }
+      } else {
+          // Fallback: Agar batches nahi hain, Root values use karo
+          totalStock = Number(item.quantity || 0);
+      }
+
       return {
-          price: Number(item.sellPrice || 0),
-          originalPrice: Number(item.retailPrice || 0),
-          stock: Number(item.quantity || 0), // Root quantity (Aggregated stock)
+          price: activePrice,
+          originalPrice: originalPrice,
+          stock: totalStock,
           urdu: item.nameInUrdu
       };
   };
@@ -168,7 +189,7 @@ export default function ShopPage() {
     const { price, stock } = getProductDetails(product);
 
     if (price <= 0) {
-        alert("Price error. Cannot add.");
+        alert("Price invalid. Cannot add.");
         return;
     }
 
@@ -183,7 +204,7 @@ export default function ShopPage() {
         [product.id]: { 
             ...product, 
             qty: currentQty + 1, 
-            finalPrice: price // Snapshot price at time of add
+            finalPrice: price // Snapshot price
         }
       };
     });
@@ -238,7 +259,6 @@ export default function ShopPage() {
     setIsOrderPlacing(true);
 
     try {
-      // 1. Clean Data for DB (Security)
       const cleanItems = {};
       Object.values(cart).forEach(item => {
         cleanItems[item.id] = {
@@ -247,7 +267,6 @@ export default function ShopPage() {
             nameInUrdu: item.nameInUrdu || "",
             qty: item.qty,
             price: item.finalPrice,
-            // We do NOT send purchasePrice or wholeSalePrice
         };
       });
 
@@ -275,7 +294,7 @@ export default function ShopPage() {
       setCustomer({ name: '', phone: '', address: '', location: null });
     } catch (err) {
       console.error(err);
-      alert("Order Failed. Please try again.");
+      alert("Order Failed.");
     } finally {
       setIsOrderPlacing(false);
     }
@@ -348,7 +367,6 @@ export default function ShopPage() {
             const qtyInCart = cart[item.id]?.qty || 0;
             const isOutOfStock = stock <= 0;
             
-            // Discount Calc
             const hasDiscount = originalPrice > price;
             const discountPct = hasDiscount ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
 
